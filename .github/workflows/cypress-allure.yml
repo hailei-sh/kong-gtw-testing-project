@@ -1,0 +1,88 @@
+
+name: Cypress E2E with Allure
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Compose and start services
+        run: |
+          docker-compose up -d --build
+
+      - name: Wait for services to be ready
+        run: |
+          set -e
+          for i in $(seq 1 60); do
+            if curl -sSf http://localhost:8001/ >/dev/null 2>&1; then
+              echo "Service ready"
+              break
+            fi
+            echo "waiting... ($i)"
+            sleep 2
+          done
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Cypress tests (with Allure)
+        env:
+          CYPRESS_baseUrl: http://localhost:8002
+        run: |
+          mkdir -p allure-results
+          npx cypress run --browser chrome --config video=false --env allure=true
+
+      - name: Generate Allure report
+        run: npx allure generate allure-results -o allure-report --clean
+
+      - name: Deploy Allure report to GitHub Pages (per-PR/run)
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./allure-report
+          publish_branch: gh-pages
+          destination_dir: reports/pr-${{ github.event.pull_request.number || github.run_id }}
+          allow_empty_commit: true
+
+      - name: Comment PR with Allure preview link
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request.number;
+            const runId = context.runId;
+            const dir = `reports/pr-${pr || runId}`;
+            const url = `https://${owner}.github.io/${repo}/${dir}/index.html`;
+            const body = `Allure report preview for this PR: ${url}`;
+            await github.issues.createComment({ owner, repo, issue_number: pr, body });
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-allure-artifacts
+          path: |
+            allure-report/**
+            allure-results/**
+            cypress/screenshots/**
+            cypress/videos/**
+
+      - name: Tear down docker-compose
+        if: always()
+        run: docker-compose down -v
