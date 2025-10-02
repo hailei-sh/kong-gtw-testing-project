@@ -6,6 +6,13 @@ on:
     branches: [ main ]
   pull_request:
 
+permissions:
+  contents: read
+  issues: write
+  actions: read
+  pages: write
+  id-token: write
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -74,46 +81,35 @@ jobs:
           # generate screenshot; if it fails, continue (we'll still upload artifacts)
           chromium-browser --headless --disable-gpu --screenshot=allure-report/preview.png --window-size=1200,900 "$FILE" || true
 
-      - name: Upload Allure report as artifact
+      - name: Upload Allure report (for Pages)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-pages-artifact@v1
         with:
-          name: allure-report-${{ github.run_id }}
           path: ./allure-report
 
-      - name: Comment PR with Allure artifact link
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            const { owner, repo } = context.repo;
-            const pr = context.payload.pull_request.number;
-            const runId = context.runId;
-            const artifactName = `allure-report-${runId}`;
-            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
-            let body = `Allure report for this PR was uploaded as an artifact named **${artifactName}**. Download it from the Actions run: ${runUrl} (see the "Artifacts" section).`;
-            try {
-              const img = fs.readFileSync('allure-report/preview.png', {encoding: 'base64'});
-              body = `Allure report preview:\n\n![Allure preview](data:image/png;base64,${img})\n\n` + body;
-            } catch (err) {
-              // if screenshot missing, just post the link
-              console.warn('preview image not found', err && err.message);
-            }
-            // Attempt to find the uploaded artifact for this run and include a direct artifact link
-            try {
-              const res = await github.rest.actions.listWorkflowRunArtifacts({ owner, repo, run_id: runId });
-              const artifacts = res.data && res.data.artifacts ? res.data.artifacts : [];
-              const art = artifacts.find(a => a.name === artifactName);
-              if (art) {
-                const artifactUrl = `https://github.com/${owner}/${repo}/suites/${runId}/artifacts/${art.id}`;
-                body += `\n\nDirect artifact download: ${artifactUrl}`;
-              }
-            } catch (err) {
-              console.warn('could not list artifacts', err && err.message);
-            }
-            await github.issues.createComment({ owner, repo, issue_number: pr, body });
+      - name: Add deploy info to Allure report
+        if: always()
+        run: |
+          echo "Run ID: $GITHUB_RUN_ID" > allure-report/DEPLOY_INFO.txt || true
+          echo "Repository: $GITHUB_REPOSITORY" >> allure-report/DEPLOY_INFO.txt || true
+          echo "Run URL: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> allure-report/DEPLOY_INFO.txt || true
+          echo "Generated at: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> allure-report/DEPLOY_INFO.txt || true
+
+      - name: Deploy to GitHub Pages
+        if: always()
+        uses: actions/deploy-pages@v1
+        with: {}
+
+      - name: Output Pages URL to job summary
+        if: always()
+        run: |
+          # Best-effort Pages URL (project pages):
+          OWNER=$(echo "$GITHUB_REPOSITORY" | cut -d/ -f1)
+          REPO=$(echo "$GITHUB_REPOSITORY" | cut -d/ -f2)
+          PAGES_URL="https://${OWNER}.github.io/${REPO}/"
+          echo "GitHub Pages (best-effort) URL: $PAGES_URL"
+          echo "Published Pages (if deploy succeeded) should appear at: $PAGES_URL" >> $GITHUB_STEP_SUMMARY || true
+          echo "Actions run URL: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> $GITHUB_STEP_SUMMARY || true
 
       - name: Upload artifacts
         if: always()
