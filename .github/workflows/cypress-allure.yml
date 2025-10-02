@@ -16,12 +16,21 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Docker Compose and start services
-        uses: docker/compose-action@v2
-        with:
-          compose-file: docker-compose.yml
-          action: up
-          detached: true
-          build: true
+        run: |
+          set -e
+          # prefer 'docker compose', fall back to 'docker-compose', otherwise install pip docker-compose
+          if docker compose version >/dev/null 2>&1; then
+            echo "Using 'docker compose'"
+            docker compose up -d --build
+          elif command -v docker-compose >/dev/null 2>&1; then
+            echo "Using 'docker-compose' binary"
+            docker-compose up -d --build
+          else
+            echo "No docker compose found, installing docker-compose via pip"
+            python3 -m pip install --user docker-compose
+            export PATH="$HOME/.local/bin:$PATH"
+            docker-compose up -d --build
+          fi
 
       - name: Wait for services to be ready
         run: |
@@ -119,8 +128,14 @@ jobs:
 
       - name: Tear down docker-compose
         if: always()
-        uses: docker/compose-action@v2
-        with:
-          compose-file: docker-compose.yml
-          action: down
-          remove-volumes: true
+        run: |
+          set -e
+          if docker compose version >/dev/null 2>&1; then
+            docker compose down -v
+          elif command -v docker-compose >/dev/null 2>&1; then
+            docker-compose down -v
+          else
+            python3 -m pip install --user docker-compose
+            export PATH="$HOME/.local/bin:$PATH"
+            docker-compose down -v
+          fi
