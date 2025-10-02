@@ -16,8 +16,12 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Docker Compose and start services
-        run: |
-          docker-compose up -d --build
+        uses: docker/compose-action@v2
+        with:
+          compose-file: docker-compose.yml
+          action: up
+          detached: true
+          build: true
 
       - name: Wait for services to be ready
         run: |
@@ -49,12 +53,17 @@ jobs:
       - name: Generate Allure report
         run: npx allure generate allure-results -o allure-report --clean
 
-      - name: Install Puppeteer for screenshot
-        run: npm install puppeteer --no-save
-
-      - name: Screenshot Allure report (preview)
+      - name: Install Chromium for headless screenshot
         run: |
-          node -e "(async()=>{const puppeteer=require('puppeteer'); const path=require('path'); const file='file://'+path.resolve('allure-report','index.html'); const browser=await puppeteer.launch({args:['--no-sandbox','--disable-setuid-sandbox']}); const page=await browser.newPage(); await page.setViewport({width:1200,height:900}); await page.goto(file,{waitUntil:'networkidle2'}); await page.screenshot({path:'allure-report/preview.png',fullPage:true}); await browser.close();})().catch(e=>{console.error(e); process.exit(0);});"
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+
+      - name: Screenshot Allure report (preview) using Chromium headless
+        run: |
+          mkdir -p allure-report
+          FILE="file://$(pwd)/allure-report/index.html"
+          # generate screenshot; if it fails, continue (we'll still upload artifacts)
+          chromium-browser --headless --disable-gpu --screenshot=allure-report/preview.png --window-size=1200,900 "$FILE" || true
 
       - name: Upload Allure report as artifact
         if: always()
@@ -110,4 +119,8 @@ jobs:
 
       - name: Tear down docker-compose
         if: always()
-        run: docker-compose down -v
+        uses: docker/compose-action@v2
+        with:
+          compose-file: docker-compose.yml
+          action: down
+          remove-volumes: true
