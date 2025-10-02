@@ -49,6 +49,13 @@ jobs:
       - name: Generate Allure report
         run: npx allure generate allure-results -o allure-report --clean
 
+      - name: Install Puppeteer for screenshot
+        run: npm install puppeteer --no-save
+
+      - name: Screenshot Allure report (preview)
+        run: |
+          node -e "(async()=>{const puppeteer=require('puppeteer'); const path=require('path'); const file='file://'+path.resolve('allure-report','index.html'); const browser=await puppeteer.launch({args:['--no-sandbox','--disable-setuid-sandbox']}); const page=await browser.newPage(); await page.setViewport({width:1200,height:900}); await page.goto(file,{waitUntil:'networkidle2'}); await page.screenshot({path:'allure-report/preview.png',fullPage:true}); await browser.close();})().catch(e=>{console.error(e); process.exit(0);});"
+
       - name: Upload Allure report as artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -62,12 +69,32 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const fs = require('fs');
             const { owner, repo } = context.repo;
             const pr = context.payload.pull_request.number;
             const runId = context.runId;
             const artifactName = `allure-report-${runId}`;
             const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
-            const body = `Allure report for this PR was uploaded as an artifact named **${artifactName}**. Download it from the Actions run: ${runUrl} (see the "Artifacts" section).`;
+            let body = `Allure report for this PR was uploaded as an artifact named **${artifactName}**. Download it from the Actions run: ${runUrl} (see the "Artifacts" section).`;
+            try {
+              const img = fs.readFileSync('allure-report/preview.png', {encoding: 'base64'});
+              body = `Allure report preview:\n\n![Allure preview](data:image/png;base64,${img})\n\n` + body;
+            } catch (err) {
+              // if screenshot missing, just post the link
+              console.warn('preview image not found', err && err.message);
+            }
+            // Attempt to find the uploaded artifact for this run and include a direct artifact link
+            try {
+              const res = await github.rest.actions.listWorkflowRunArtifacts({ owner, repo, run_id: runId });
+              const artifacts = res.data && res.data.artifacts ? res.data.artifacts : [];
+              const art = artifacts.find(a => a.name === artifactName);
+              if (art) {
+                const artifactUrl = `https://github.com/${owner}/${repo}/suites/${runId}/artifacts/${art.id}`;
+                body += `\n\nDirect artifact download: ${artifactUrl}`;
+              }
+            } catch (err) {
+              console.warn('could not list artifacts', err && err.message);
+            }
             await github.issues.createComment({ owner, repo, issue_number: pr, body });
 
       - name: Upload artifacts

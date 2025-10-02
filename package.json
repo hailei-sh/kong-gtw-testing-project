@@ -1,5 +1,5 @@
 {
-  "name": "my-cypress-project",
+  "name": "kong-gtw-testing-project",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
