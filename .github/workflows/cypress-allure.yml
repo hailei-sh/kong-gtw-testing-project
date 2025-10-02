@@ -49,16 +49,14 @@ jobs:
       - name: Generate Allure report
         run: npx allure generate allure-results -o allure-report --clean
 
-      - name: Deploy Allure report to GitHub Pages (per-PR/run)
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Upload Allure report as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./allure-report
-          publish_branch: gh-pages
-          destination_dir: reports/pr-${{ github.event.pull_request.number || github.run_id }}
-          allow_empty_commit: true
+          name: allure-report-${{ github.run_id }}
+          path: ./allure-report
 
-      - name: Comment PR with Allure preview link
+      - name: Comment PR with Allure artifact link
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
         with:
@@ -67,9 +65,9 @@ jobs:
             const { owner, repo } = context.repo;
             const pr = context.payload.pull_request.number;
             const runId = context.runId;
-            const dir = `reports/pr-${pr || runId}`;
-            const url = `https://${owner}.github.io/${repo}/${dir}/index.html`;
-            const body = `Allure report preview for this PR: ${url}`;
+            const artifactName = `allure-report-${runId}`;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+            const body = `Allure report for this PR was uploaded as an artifact named **${artifactName}**. Download it from the Actions run: ${runUrl} (see the "Artifacts" section).`;
             await github.issues.createComment({ owner, repo, issue_number: pr, body });
 
       - name: Upload artifacts
