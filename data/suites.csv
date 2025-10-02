@@ -1,0 +1,8 @@
+"DESCRIPTION","DURATION IN MS","NAME","PARENT SUITE","START TIME","STATUS","STOP TIME","SUB SUITE","SUITE","TEST CLASS","TEST METHOD"
+"","1183","test the route without basic auth","","Thu Oct 02 13:18:45 UTC 2025","passed","Thu Oct 02 13:18:46 UTC 2025","","test the gateway configuration function","",""
+"","6499","add a new consumer","","Thu Oct 02 13:18:30 UTC 2025","passed","Thu Oct 02 13:18:36 UTC 2025","","test the gateway configuration function","",""
+"","5193","add the basic auth plugin to the route","","Thu Oct 02 13:18:24 UTC 2025","passed","Thu Oct 02 13:18:29 UTC 2025","","test the gateway configuration function","",""
+"","6183","add a route to the service","","Thu Oct 02 13:18:18 UTC 2025","passed","Thu Oct 02 13:18:24 UTC 2025","","test the gateway configuration function","",""
+"","7951","add a gateway service","","Thu Oct 02 13:18:10 UTC 2025","passed","Thu Oct 02 13:18:18 UTC 2025","","test the gateway configuration function","",""
+"","61452","test the route with exceeding the rate limit","","Thu Oct 02 13:18:46 UTC 2025","passed","Thu Oct 02 13:19:48 UTC 2025","","test the gateway configuration function","",""
+"","8689","add the rate limiting plugin to the route","","Thu Oct 02 13:18:36 UTC 2025","passed","Thu Oct 02 13:18:45 UTC 2025","","test the gateway configuration function","",""
