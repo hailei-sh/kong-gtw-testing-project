@@ -132,6 +132,49 @@ jobs:
             exit 1;
           }
 
+      - name: Ensure Pages source is gh-pages and wait for build
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER=$(echo "$GITHUB_REPOSITORY" | cut -d/ -f1)
+          REPO=$(echo "$GITHUB_REPOSITORY" | cut -d/ -f2)
+          echo "Setting Pages source to gh-pages branch for $OWNER/$REPO"
+          # Set the pages source
+          curl -s -X PUT \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${OWNER}/${REPO}/pages \
+            -d '{"source":{"branch":"gh-pages","path":"/"}}' || true
+
+          # Trigger an immediate Pages build
+          echo "Triggering Pages build via API"
+          curl -s -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${OWNER}/${REPO}/pages/builds || true
+
+          # Poll Pages build status
+          # ensure jq is available
+          sudo apt-get update && sudo apt-get install -y jq || true
+          for i in $(seq 1 10); do
+            echo "Checking Pages build status (attempt $i) ..."
+            api_out=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" https://api.github.com/repos/${OWNER}/${REPO}/pages || true)
+            echo "Raw Pages API response:" > /tmp/pages_api.json
+            echo "$api_out" >> /tmp/pages_api.json
+            cat /tmp/pages_api.json
+            status=$(echo "$api_out" | jq -r '.status' || true)
+            echo "Pages API status: $status"
+            # write API response to job summary for debugging
+            echo "--- Pages API response (attempt $i) ---" >> $GITHUB_STEP_SUMMARY || true
+            head -c 4096 /tmp/pages_api.json >> $GITHUB_STEP_SUMMARY || true
+            if [ "$status" = "built" ] || [ "$status" = "built, cached" ]; then
+              echo "Pages build status is: $status"
+              break
+            fi
+            sleep $((i*2))
+          done
+
       - name: Pages smoke-test (retry and report)
         if: always()
         run: |
