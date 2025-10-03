@@ -91,8 +91,18 @@ jobs:
           echo "Run URL: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> allure-report/DEPLOY_INFO.txt || true
           echo "Generated at: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> allure-report/DEPLOY_INFO.txt || true
 
-      - name: Deploy `allure-report` to gh-pages branch
+      - name: Show `allure-report` contents (debug)
         if: always()
+        run: |
+          echo "-- listing allure-report --"
+          ls -la ./allure-report || true
+          echo "-- head of index.html --"
+          head -n 30 ./allure-report/index.html || true
+
+      - name: Deploy `allure-report` to gh-pages branch
+        id: deploy_pages
+        if: always()
+        continue-on-error: true
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -101,6 +111,27 @@ jobs:
           # avoid setting cname; adjust user/email if you want attribution
           keep_files: true
           commit_message: "Deploy Allure report from run ${{ github.run_id }}"
+
+      - name: Fallback: manual git push to gh-pages if deploy failed
+        if: always() && steps.deploy_pages.outcome != 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Peaceiris deploy failed (or returned non-success). Attempting manual push to gh-pages as fallback."
+          set -e
+          cd ./allure-report
+          git init
+          git checkout -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "Deploy Allure report from run $GITHUB_RUN_ID" || true
+          # push using token; suppress output that may include token
+          GIT_PUSH_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force "$GIT_PUSH_URL" gh-pages:gh-pages || {
+            echo "Manual push failed. Check branch protections or token permissions.";
+            exit 1;
+          }
 
       - name: Output Pages info to job summary
         if: always()
