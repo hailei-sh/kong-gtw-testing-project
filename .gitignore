@@ -143,3 +143,5 @@ allure-results
 
 cypress/videos
 cypress/screenshots
+
+.venv
