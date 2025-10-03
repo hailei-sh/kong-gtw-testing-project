@@ -132,6 +132,31 @@ jobs:
             exit 1;
           }
 
+      - name: Pages smoke-test (retry and report)
+        if: always()
+        run: |
+          OWNER=$(echo "$GITHUB_REPOSITORY" | cut -d/ -f1)
+          REPO=$(echo "$GITHUB_REPOSITORY" | cut -d/ -f2)
+          PAGES_URL="https://${OWNER}.github.io/${REPO}/"
+          echo "Checking Pages URL: $PAGES_URL"
+          status=0
+          body_file=$(mktemp)
+          for i in $(seq 1 10); do
+            echo "Attempt $i..."
+            http_status=$(curl -s -o "$body_file" -w "%{http_code}" "$PAGES_URL" || true)
+            echo "HTTP status: $http_status"
+            if [ "$http_status" = "200" ]; then
+              status=200
+              break
+            fi
+            sleep $((i*2))
+          done
+          echo "Pages final HTTP status: $status"
+          echo "Pages final HTTP status: $status" >> $GITHUB_STEP_SUMMARY || true
+          echo "--- response head (first 2KB) ---" >> $GITHUB_STEP_SUMMARY || true
+          head -c 2048 "$body_file" >> $GITHUB_STEP_SUMMARY || true
+          rm -f "$body_file" || true
+
       - name: Output Pages info to job summary
         if: always()
         run: |
