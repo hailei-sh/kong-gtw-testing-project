@@ -33,3 +33,7 @@ The test suite covers the following scenarios:
 - **GitHub Actions Integration:**
   - The Cypress test suite runs automatically whenever there is a push to the `main` branch.
   - The **Allure** test report is generated and published to the GitHub Pages for easy access.
+    - https://hailei-sh.github.io/kong-gtw-testing-project/
+
+## P.S.
+Since this is a proof-of-concept project aimed at showcasing automation capabilities, it doesn’t include extensive negative test cases (e.g., boundary value checks). Design patterns such as the Page Object Model are also omitted, as the demo is intentionally kept simple.
