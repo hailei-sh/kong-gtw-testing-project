@@ -1,4 +1,5 @@
 {
-    "username": "testuser",
+    "consumer_username": "testconsumer",
+    "credential_username": "testuser",
     "password": "testpassword"
 }
